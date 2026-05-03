@@ -531,7 +531,7 @@ async function saveOrders(){
       method:"POST",
       mode:"no-cors",
       headers:{"Content-Type":"text/plain"},
-      body: JSON.stringify(orders)
+      body: JSON.stringify({action:"save", data: JSON.stringify(orders)})
     });
     const n=Object.keys(orders).filter(u=>Object.values(orders[u]||{}).some(q=>q>0)).length;
     const now=new Date().toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"});
@@ -825,8 +825,27 @@ function openWin(html){
 }
 
 async function resetAll(){
-  if(!confirm("ATTENZIONE: azzerare TUTTI gli ordini di tutti i colleghi?\nQuesta operazione non è reversibile.")) return;
-  orders={}; await saveOrders(); updateBadges(); renderAllOrders();
+  if(!confirm("ATTENZIONE: azzerare TUTTI gli ordini di tutti i colleghi?\nL'ordine corrente verrà archiviato nel Google Sheet prima di essere azzerato.\nQuesta operazione non è reversibile.")) return;
+  const today = new Date().toLocaleDateString("it-IT");
+  setStatus("saving","Archiviazione ordine in corso...");
+  try{
+    await fetch(GAS_URL, {
+      method:"POST",
+      mode:"no-cors",
+      headers:{"Content-Type":"text/plain"},
+      body: JSON.stringify({action:"archive", data: JSON.stringify(orders), date: today})
+    });
+    // Aspetta un momento per assicurarsi che lo script abbia processato
+    await new Promise(r => setTimeout(r, 1500));
+  }catch(e){
+    // no-cors non dà errori, procediamo
+  }
+  orders={};
+  localStorage.setItem("gavio_local_orders","{}");
+  updateBadges();
+  renderAllOrders();
+  setStatus("ok","Ordine archiviato e azzerato — " + today);
+  showToast("✓ Ordine archiviato nel Google Sheet e azzerato!");
 }
 
 document.getElementById("selUser").addEventListener("change",()=>{ updateBadges(); if(activeTab==="mycart") renderMyCart(); });
